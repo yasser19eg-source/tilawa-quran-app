@@ -22,10 +22,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate Gradle 9.3.1 Wrapper
+      - name: Generate Gradle 9.3.1 Wrapper and Debug Keystore
         run: |
           gradle wrapper --gradle-version 9.3.1 --distribution-type bin
           chmod +x gradlew
+          if [ ! -f ./debug.keystore ]; then
+            keytool -genkeypair -v -keystore ./debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Tilawa App,OU=Mobile,O=Tilawa,L=Minya,S=Minya,C=EG"
+          fi
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
