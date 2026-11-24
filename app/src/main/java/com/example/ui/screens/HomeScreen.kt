@@ -310,7 +310,7 @@ private fun TodayRecitationHeroCard(
   modifier: Modifier = Modifier,
 ) {
   val bwMatrix = remember { ColorMatrix().apply { setToSaturation(0f) } }
-  val oliveDark = Color(0xFF1F2B23)
+  val oliveDark = Color(0xFF2B3831)
   val oliveAccent = MaterialTheme.colorScheme.primary
 
   Card(
@@ -336,7 +336,7 @@ private fun TodayRecitationHeroCard(
         HeroStudioBackdrop()
       }
 
-      // Dark olive-green gradient overlay ensuring crisp contrast
+      // Calm misty olive gradient overlay ensuring crisp contrast
       Box(
         modifier =
           Modifier.fillMaxSize()
@@ -344,9 +344,9 @@ private fun TodayRecitationHeroCard(
               Brush.horizontalGradient(
                 colors =
                   listOf(
-                    Color(0xF0121413),
-                    Color(0xD91A251E),
-                    Color(0xA6293B2F),
+                    Color(0xEB212B26),
+                    Color(0xD42A3931),
+                    Color(0x9E394E42),
                   )
               )
             )
@@ -433,8 +433,8 @@ private fun TodayRecitationHeroCard(
             shape = RoundedCornerShape(50),
             colors =
               ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF7A9A82),
-                contentColor = Color(0xFF121413),
+                containerColor = Color(0xFF8EB398),
+                contentColor = Color(0xFF1B231F),
               ),
             modifier = Modifier.testTag("play_today_recitation_button"),
           ) {
@@ -459,7 +459,7 @@ private fun HeroStudioBackdrop() {
       Modifier.fillMaxSize()
         .background(
           Brush.radialGradient(
-            colors = listOf(Color(0xFF2B3B30), Color(0xFF121413))
+            colors = listOf(Color(0xFF3A4D41), Color(0xFF212B26))
           )
         ),
     contentAlignment = Alignment.CenterEnd,
@@ -467,7 +467,7 @@ private fun HeroStudioBackdrop() {
     Icon(
       imageVector = Icons.Rounded.Mic,
       contentDescription = null,
-      tint = Color(0x287A9A82),
+      tint = Color(0x2E8EB398),
       modifier = Modifier.padding(end = 24.dp).size(120.dp),
     )
   }
@@ -978,7 +978,7 @@ private fun CardFavoriteBadgeButton(
           .clip(CircleShape)
           .background(
             if (isFavorite) MaterialTheme.colorScheme.primary
-            else Color(0xBD121413)
+            else Color(0xBD242D28)
           )
           .border(
             BorderStroke(

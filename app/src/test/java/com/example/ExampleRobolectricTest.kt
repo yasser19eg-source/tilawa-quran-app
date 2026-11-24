@@ -10,6 +10,8 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.Mp3QuranApi
 import com.example.data.Mp3QuranMoshafDto
+import com.example.data.Mp3QuranRadioDto
+import com.example.data.Mp3QuranRadiosResponse
 import com.example.data.Mp3QuranReciterDto
 import com.example.data.Mp3QuranRecitersResponse
 import com.example.data.QuranCatalog
@@ -23,6 +25,7 @@ import com.example.notifications.DailyWirdReminderScheduler
 import com.example.playback.QuranPlaybackService
 import com.example.ui.components.QuranMedia3PlayerCard
 import com.example.ui.components.SEEK_STEP_MS
+import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.MushafAlTilawahTheme
 import androidx.media3.common.MediaItem
 import androidx.media3.session.MediaSession
@@ -244,7 +247,7 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `quran playback service initializes player and plays surah without SecurityException`() {
+  fun `quran playback service initializes player and plays surah and cairo radio without SecurityException`() {
     val controller = Robolectric.buildService(QuranPlaybackService::class.java).create()
     val service = controller.get()
     val player = service.activePlayerForTest()
@@ -253,6 +256,78 @@ class ExampleRobolectricTest {
     player.prepare()
     player.play()
     assertTrue(player.playWhenReady)
+
+    player.setMediaItem(MediaItem.fromUri(QuranCatalog.CAIRO_RADIO_STREAM_URL))
+    player.prepare()
+    player.play()
+    assertTrue(player.playWhenReady)
     controller.destroy()
+  }
+
+  @Test
+  fun `reciter catalog repository refreshes cairo radio urls from api and reloads disk cache`() =
+    runBlocking {
+      val context = ApplicationProvider.getApplicationContext<Context>()
+      val fakeApi =
+        object : Mp3QuranApi {
+          override suspend fun getReciters(language: String): Mp3QuranRecitersResponse =
+            Mp3QuranRecitersResponse()
+
+          override suspend fun getRadios(language: String): Mp3QuranRadiosResponse {
+            return Mp3QuranRadiosResponse(
+              radios =
+                listOf(
+                  Mp3QuranRadioDto(
+                    id = 10,
+                    name = "إذاعة القرآن الكريم من القاهرة",
+                    url = "https://updated-cairo.mp3quran.net/live",
+                  )
+                )
+            )
+          }
+        }
+
+      val repo = ReciterCatalogRepository(context, apiOverride = fakeApi)
+      val refreshedUrls = repo.refreshRadios()
+      assertTrue(refreshedUrls.contains("https://updated-cairo.mp3quran.net/live"))
+
+      val repoFromCache = ReciterCatalogRepository(context, apiOverride = fakeApi)
+      assertTrue(repoFromCache.loadRadiosFromDiskCache())
+      assertTrue(
+        repoFromCache.getCairoRadioUrls().contains("https://updated-cairo.mp3quran.net/live")
+      )
+    }
+
+  @Test
+  fun `application enables cleartext traffic for live radio stream redirects`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val flags = context.applicationInfo.flags
+    assertTrue((flags and android.content.pm.ApplicationInfo.FLAG_USES_CLEARTEXT_TRAFFIC) != 0)
+  }
+
+  @Test
+  fun `splash screen renders animated tilawah branding and allows entering app`() {
+    var finished = false
+    composeTestRule.mainClock.autoAdvance = false
+    composeTestRule.setContent {
+      MushafAlTilawahTheme {
+        SplashScreen(
+          onSplashFinished = { finished = true },
+          autoAdvanceDelayMs = 10_000L,
+        )
+      }
+    }
+
+    composeTestRule.waitForIdle()
+    composeTestRule.mainClock.advanceTimeBy(1_600L)
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("splash_screen").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("splash_emblem").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("splash_title_text").assertIsDisplayed()
+    composeTestRule.onNodeWithText("تلاوة").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag("splash_screen").performClick()
+    composeTestRule.waitForIdle()
+    assertTrue(finished)
   }
 }

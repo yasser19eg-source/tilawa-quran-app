@@ -299,7 +299,7 @@ fun ReciterDetailScreen(
           isBuffering = isCurrentSurah && playbackState.isBuffering,
           isUnavailable = isUnavailable,
           onClick = {
-            if (isCurrentSurah) {
+            if (isCurrentSurah && !isUnavailable) {
               onTogglePlayPause()
             } else {
               onPlaySurah(activeRiwayah, surah)
@@ -377,7 +377,7 @@ private fun SurahRowCard(
         )
         if (isUnavailable) {
           Text(
-            text = "غير متوفر حالياً على الخادم",
+            text = "تعذر التشغيل حالياً — اضغط لإعادة المحاولة",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
           )

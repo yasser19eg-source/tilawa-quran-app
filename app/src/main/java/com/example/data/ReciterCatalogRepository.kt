@@ -48,9 +48,26 @@ data class Mp3QuranMoshafDto(
   @Json(name = "surah_list") val surahList: String = "",
 )
 
+@JsonClass(generateAdapter = true)
+data class Mp3QuranRadiosResponse(
+  @Json(name = "radios") val radios: List<Mp3QuranRadioDto> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class Mp3QuranRadioDto(
+  @Json(name = "id") val id: Int = 0,
+  @Json(name = "name") val name: String = "",
+  @Json(name = "url") val url: String = "",
+  @Json(name = "recent_date") val recentDate: String? = null,
+)
+
 interface Mp3QuranApi {
   @GET("api/v3/reciters")
   suspend fun getReciters(@Query("language") language: String = "ar"): Mp3QuranRecitersResponse
+
+  @GET("api/v3/radios")
+  suspend fun getRadios(@Query("language") language: String = "ar"): Mp3QuranRadiosResponse =
+    Mp3QuranRadiosResponse()
 }
 
 class ReciterCatalogRepository(
@@ -59,14 +76,19 @@ class ReciterCatalogRepository(
 ) {
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val refreshMutex = Mutex()
+  private val radiosRefreshMutex = Mutex()
 
   private val _recitersFlow = MutableStateFlow(QuranCatalog.reciters)
   val recitersFlow: StateFlow<List<Reciter>> = _recitersFlow.asStateFlow()
+
+  private val _cairoRadioUrlsFlow = MutableStateFlow(QuranCatalog.CAIRO_RADIO_FALLBACK_URLS)
+  val cairoRadioUrlsFlow: StateFlow<List<String>> = _cairoRadioUrlsFlow.asStateFlow()
 
   private val _isSyncing = MutableStateFlow(false)
   val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
   private val cacheFile: File by lazy { File(context.filesDir, CACHE_FILE_NAME) }
+  private val radiosCacheFile: File by lazy { File(context.filesDir, RADIOS_CACHE_FILE_NAME) }
 
   private val moshi: Moshi by lazy {
     Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
@@ -76,38 +98,51 @@ class ReciterCatalogRepository(
     moshi.adapter(Mp3QuranRecitersResponse::class.java)
   }
 
-  private val api: Mp3QuranApi by lazy {
-    apiOverride ?: run {
-      val headerInterceptor = Interceptor { chain ->
-        val req =
-          chain
-            .request()
-            .newBuilder()
-            .header("Accept", "application/json")
-            .header("User-Agent", "MushafAlTilawahAndroid/1.0")
-            .build()
-        chain.proceed(req)
-      }
-      val client =
-        OkHttpClient.Builder()
-          .addInterceptor(headerInterceptor)
-          .connectTimeout(15, TimeUnit.SECONDS)
-          .readTimeout(15, TimeUnit.SECONDS)
-          .build()
+  private val radiosResponseAdapter by lazy {
+    moshi.adapter(Mp3QuranRadiosResponse::class.java)
+  }
 
-      Retrofit.Builder()
-        .baseUrl(MP3QURAN_BASE_URL)
-        .client(client)
-        .addConverterFactory(MoshiConverterFactory.create(moshi))
-        .build()
-        .create(Mp3QuranApi::class.java)
+  private val okHttpClient: OkHttpClient by lazy {
+    val headerInterceptor = Interceptor { chain ->
+      val req =
+        chain
+          .request()
+          .newBuilder()
+          .header("Accept", "application/json")
+          .header("User-Agent", "TilawahAndroid/1.0")
+          .build()
+      chain.proceed(req)
     }
+    OkHttpClient.Builder()
+      .addInterceptor(headerInterceptor)
+      .connectTimeout(20, TimeUnit.SECONDS)
+      .readTimeout(20, TimeUnit.SECONDS)
+      .build()
+  }
+
+  private val api: Mp3QuranApi by lazy {
+    apiOverride ?: createApi(MP3QURAN_BASE_URL)
+  }
+
+  private val backupApi: Mp3QuranApi by lazy {
+    apiOverride ?: createApi(MP3QURAN_BACKUP_BASE_URL)
+  }
+
+  private fun createApi(baseUrl: String): Mp3QuranApi {
+    return Retrofit.Builder()
+      .baseUrl(baseUrl)
+      .client(okHttpClient)
+      .addConverterFactory(MoshiConverterFactory.create(moshi))
+      .build()
+      .create(Mp3QuranApi::class.java)
   }
 
   fun initialize() {
     scope.launch {
       loadFromDiskCache()
+      loadRadiosFromDiskCache()
       refreshCatalog()
+      refreshRadios()
     }
   }
 
@@ -126,11 +161,32 @@ class ReciterCatalogRepository(
       }
     }
 
+  suspend fun loadRadiosFromDiskCache(): Boolean =
+    withContext(Dispatchers.IO) {
+      try {
+        if (!radiosCacheFile.exists()) return@withContext false
+        val json = radiosCacheFile.readText()
+        val parsed = radiosResponseAdapter.fromJson(json) ?: return@withContext false
+        if (parsed.radios.isEmpty()) return@withContext false
+        _cairoRadioUrlsFlow.value = extractCairoRadioUrls(parsed.radios)
+        true
+      } catch (_: Exception) {
+        false
+      }
+    }
+
   suspend fun refreshCatalog(): List<Reciter> =
     refreshMutex.withLock {
       _isSyncing.value = true
       try {
-        val response = withContext(Dispatchers.IO) { api.getReciters("ar") }
+        val response =
+          withContext(Dispatchers.IO) {
+            try {
+              api.getReciters("ar")
+            } catch (_: Exception) {
+              if (apiOverride == null) backupApi.getReciters("ar") else throw IllegalStateException()
+            }
+          }
         if (response.reciters.isNotEmpty()) {
           val merged = mergeCatalog(QuranCatalog.reciters, response.reciters)
           _recitersFlow.value = merged
@@ -143,6 +199,29 @@ class ReciterCatalogRepository(
       }
       _recitersFlow.value
     }
+
+  suspend fun refreshRadios(): List<String> =
+    radiosRefreshMutex.withLock {
+      try {
+        val response =
+          withContext(Dispatchers.IO) {
+            try {
+              api.getRadios("ar")
+            } catch (_: Exception) {
+              if (apiOverride == null) backupApi.getRadios("ar") else throw IllegalStateException()
+            }
+          }
+        if (response.radios.isNotEmpty()) {
+          _cairoRadioUrlsFlow.value = extractCairoRadioUrls(response.radios)
+          saveRadiosToDiskCache(response)
+        }
+      } catch (_: Exception) {
+        // Keep curated or disk-cached radio URLs silently when offline
+      }
+      _cairoRadioUrlsFlow.value
+    }
+
+  fun getCairoRadioUrls(): List<String> = _cairoRadioUrlsFlow.value
 
   fun findReciter(reciterId: String): Reciter? {
     return _recitersFlow.value.firstOrNull { it.id == reciterId }
@@ -168,9 +247,20 @@ class ReciterCatalogRepository(
       }
     }
 
+  private suspend fun saveRadiosToDiskCache(response: Mp3QuranRadiosResponse) =
+    withContext(Dispatchers.IO) {
+      try {
+        val json = radiosResponseAdapter.toJson(response)
+        radiosCacheFile.writeText(json)
+      } catch (_: Exception) {
+      }
+    }
+
   companion object {
     const val MP3QURAN_BASE_URL = "https://www.mp3quran.net/"
+    const val MP3QURAN_BACKUP_BASE_URL = "https://mp3quran.net/"
     private const val CACHE_FILE_NAME = "mp3quran_reciters_cache.json"
+    private const val RADIOS_CACHE_FILE_NAME = "mp3quran_radios_cache.json"
 
     fun compactArabic(input: String): String {
       return QuranCatalog.normalizeArabic(input).replace(" ", "")
@@ -184,9 +274,50 @@ class ReciterCatalogRepository(
           trimmed.startsWith("https://", ignoreCase = true) -> trimmed
           trimmed.startsWith("http://", ignoreCase = true) ->
             "https://" + trimmed.removePrefix("http://").removePrefix("HTTP://")
+          trimmed.startsWith("//") -> "https:$trimmed"
           else -> return null
         }
       return if (withScheme.endsWith("/")) withScheme else "$withScheme/"
+    }
+
+    fun toHttpFallbackUrl(serverUrl: String): String? {
+      val normalized = normalizeServerUrl(serverUrl) ?: return null
+      return "http://" + normalized.removePrefix("https://")
+    }
+
+    fun normalizeStreamUrl(rawUrl: String): String? {
+      val trimmed = rawUrl.trim()
+      if (trimmed.isBlank()) return null
+      return when {
+        trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+        trimmed.startsWith("http://", ignoreCase = true) -> trimmed
+        trimmed.startsWith("//") -> "https:$trimmed"
+        else -> null
+      }
+    }
+
+    fun extractCairoRadioUrls(radios: List<Mp3QuranRadioDto>): List<String> {
+      val matchedUrls = mutableListOf<String>()
+      radios.forEach { radio ->
+        val normalizedName = compactArabic(radio.name)
+        val isCairoStation =
+          (normalizedName.contains("القرانالكريم") &&
+            (normalizedName.contains("القاهره") || normalizedName.contains("مصر"))) ||
+            normalizedName.contains("اذاعهالقرانالكريممنالقاهره")
+        if (isCairoStation) {
+          val streamUrl = normalizeStreamUrl(radio.url)
+          if (streamUrl != null) {
+            if (streamUrl.startsWith("http://", ignoreCase = true)) {
+              matchedUrls.add("https://" + streamUrl.substringAfter("://"))
+            }
+            matchedUrls.add(streamUrl)
+            if (streamUrl.startsWith("https://", ignoreCase = true)) {
+              matchedUrls.add("http://" + streamUrl.substringAfter("://"))
+            }
+          }
+        }
+      }
+      return (matchedUrls + QuranCatalog.CAIRO_RADIO_FALLBACK_URLS).distinct()
     }
 
     fun parseSurahList(rawList: String): Set<Int> {
@@ -284,10 +415,12 @@ class ReciterCatalogRepository(
       val surahs = parseSurahList(moshaf.surahList)
       if (surahs.isEmpty()) return null
       val name = moshaf.name.trim().ifBlank { "حفص عن عاصم" }
+      val httpMirror = toHttpFallbackUrl(server)
+      val fallbacks = listOfNotNull(httpMirror).filter { it != server }.distinct()
       return Riwayah(
         nameAr = name,
         baseUrl = server,
-        fallbackBaseUrls = emptyList(),
+        fallbackBaseUrls = fallbacks,
         availableSurahs = surahs,
       )
     }
@@ -309,18 +442,28 @@ class ReciterCatalogRepository(
 
           if (matchedApiRiwayah != null) {
             usedApiUrls.add(matchedApiRiwayah.baseUrl)
-            val fallbacks =
+            val httpsFallbacks =
               (listOf(curatedRiwayah.baseUrl) + curatedRiwayah.fallbackBaseUrls)
                 .mapNotNull { normalizeServerUrl(it) }
                 .filter { it != matchedApiRiwayah.baseUrl }
-                .distinct()
+            val httpFallbacks =
+              (listOf(matchedApiRiwayah.baseUrl, curatedRiwayah.baseUrl) +
+                curatedRiwayah.fallbackBaseUrls)
+                .mapNotNull { toHttpFallbackUrl(it) }
+            val fallbacks = (httpsFallbacks + httpFallbacks).distinct()
             curatedRiwayah.copy(
               baseUrl = matchedApiRiwayah.baseUrl,
               fallbackBaseUrls = fallbacks,
               availableSurahs = matchedApiRiwayah.availableSurahs,
             )
           } else {
-            curatedRiwayah
+            val httpFallbacks =
+              (listOf(curatedRiwayah.baseUrl) + curatedRiwayah.fallbackBaseUrls)
+                .mapNotNull { toHttpFallbackUrl(it) }
+                .filter { it != curatedRiwayah.baseUrl }
+            curatedRiwayah.copy(
+              fallbackBaseUrls = (curatedRiwayah.fallbackBaseUrls + httpFallbacks).distinct()
+            )
           }
         }
 

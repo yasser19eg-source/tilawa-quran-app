@@ -11,6 +11,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -86,6 +88,7 @@ import com.example.ui.screens.ReciterDetailScreen
 import com.example.ui.screens.RecitersScreen
 import com.example.ui.screens.SadaqahScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.AmiriFontFamily
 import com.example.ui.theme.MushafAlTilawahTheme
 import com.example.viewmodel.MainViewModel
@@ -110,6 +113,7 @@ class MainActivity : ComponentActivity() {
     setContent {
       val viewModel: MainViewModel = viewModel(factory = factory)
       val preferences by viewModel.preferencesState.collectAsStateWithLifecycle()
+      val showSplash by viewModel.showSplash.collectAsStateWithLifecycle()
 
       LaunchedEffect(preferences.isDarkMode) {
         if (preferences.isDarkMode) {
@@ -130,7 +134,17 @@ class MainActivity : ComponentActivity() {
           darkTheme = preferences.isDarkMode,
           fontScaleFactor = preferences.fontScaleOption.scaleFactor,
         ) {
-          MushafAppRoot(viewModel = viewModel)
+          Crossfade(
+            targetState = showSplash,
+            animationSpec = tween(durationMillis = 480),
+            label = "splash_transition",
+          ) { isSplashVisible ->
+            if (isSplashVisible) {
+              SplashScreen(onSplashFinished = viewModel::dismissSplash)
+            } else {
+              MushafAppRoot(viewModel = viewModel)
+            }
+          }
         }
       }
     }

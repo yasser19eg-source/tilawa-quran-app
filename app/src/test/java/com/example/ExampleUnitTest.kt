@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.data.Mp3QuranMoshafDto
+import com.example.data.Mp3QuranRadioDto
 import com.example.data.Mp3QuranReciterDto
 import com.example.data.QuranCatalog
 import com.example.data.ReciterCatalogRepository
@@ -139,13 +140,41 @@ class ExampleUnitTest {
     assertTrue(
       husary.riwayat.first().fallbackBaseUrls.contains("https://server13.mp3quran.net/husr/")
     )
+    assertTrue(
+      husary.riwayat.first().fallbackBaseUrls.contains("http://server14.mp3quran.net/husr/")
+    )
     assertEquals(setOf(1, 2, 18, 114), husary.riwayat.first().availableSurahs)
 
     val bandar = merged.first { it.id == "mp3q_205" }
     assertEquals("الشيخ بندر بليلة", bandar.nameAr)
     assertEquals("https://server6.mp3quran.net/balilah/", bandar.riwayat.first().baseUrl)
+    assertTrue(bandar.riwayat.first().fallbackBaseUrls.contains("http://server6.mp3quran.net/balilah/"))
     assertEquals(setOf(1, 2, 3), bandar.riwayat.first().availableSurahs)
     assertTrue(bandar.wikipediaTitles.contains("بندر بليلة"))
+  }
+
+  @Test
+  fun extract_cairo_radio_urls_prioritizes_live_api_url_with_http_and_curated_mirrors() {
+    val radios =
+      listOf(
+        Mp3QuranRadioDto(
+          id = 1,
+          name = "إذاعة مشاري العفاسي",
+          url = "https://backup.qurango.net/radio/mishary",
+        ),
+        Mp3QuranRadioDto(
+          id = 2,
+          name = "إذاعة القرآن الكريم من القاهرة",
+          url = "http://live.cairo-radio.example.net/stream",
+        ),
+      )
+
+    val extracted = ReciterCatalogRepository.extractCairoRadioUrls(radios)
+    assertTrue(extracted.contains("https://live.cairo-radio.example.net/stream"))
+    assertTrue(extracted.contains("http://live.cairo-radio.example.net/stream"))
+    assertTrue(extracted.contains(QuranCatalog.CAIRO_RADIO_STREAM_URL))
+    assertTrue(extracted.contains("http://stream.radiojar.com/8s5u5tpdtwzuv"))
+    assertEquals("https://live.cairo-radio.example.net/stream", extracted.first())
   }
 
   @Test

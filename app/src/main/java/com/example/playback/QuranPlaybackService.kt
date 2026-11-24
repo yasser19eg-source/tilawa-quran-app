@@ -8,8 +8,10 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.example.MainActivity
@@ -30,14 +32,25 @@ class QuranPlaybackService : MediaSessionService() {
     val httpDataSourceFactory =
       DefaultHttpDataSource.Factory()
         .setAllowCrossProtocolRedirects(true)
-        .setConnectTimeoutMs(15_000)
-        .setReadTimeoutMs(15_000)
-        .setUserAgent("TilawahAndroid/1.0 (Media3 ExoPlayer)")
+        .setKeepPostFor302Redirects(true)
+        .setConnectTimeoutMs(20_000)
+        .setReadTimeoutMs(20_000)
+        .setDefaultRequestProperties(mapOf("Icy-MetaData" to "1"))
+        .setUserAgent("Mozilla/5.0 (Linux; Android 14) Tilawah/1.0 ExoPlayerLib")
     val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
+    val extractorsFactory =
+      DefaultExtractorsFactory()
+        .setConstantBitrateSeekingEnabled(true)
+        .setConstantBitrateSeekingAlwaysEnabled(true)
+    val loadControl =
+      DefaultLoadControl.Builder()
+        .setBufferDurationsMs(15_000, 50_000, 1_500, 3_000)
+        .build()
 
     val player =
       ExoPlayer.Builder(this)
-        .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory))
+        .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory, extractorsFactory))
+        .setLoadControl(loadControl)
         .setAudioAttributes(audioAttributes, true)
         .setHandleAudioBecomingNoisy(true)
         .build()

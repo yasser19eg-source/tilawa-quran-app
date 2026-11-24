@@ -52,8 +52,13 @@ class AudioPlaybackManager(
 
   private val triedUrlsForCurrentTrack = mutableSetOf<String>()
   private var refreshedCatalogForCurrentTrack = false
+  private var surahTransientRetryDone = false
   private var currentStartPositionMs = 0L
   private var currentPortraitUrl: String? = null
+
+  private val triedRadioUrls = mutableSetOf<String>()
+  private var refreshedRadiosForCurrentAttempt = false
+  private var radioTransientRetryDone = false
 
   private val playerListener =
     object : Player.Listener {
@@ -79,9 +84,14 @@ class AudioPlaybackManager(
             }
           }
           Player.STATE_READY -> {
-            _uiState.update {
-              it.copy(
+            _uiState.update { state ->
+              val currentTrackKey = (state.activeTarget as? ActiveAudioTarget.SurahTrack)?.trackKey
+              state.copy(
                 isBuffering = false,
+                errorMessage = null,
+                unavailableTrackKeys =
+                  if (currentTrackKey != null) state.unavailableTrackKeys - currentTrackKey
+                  else state.unavailableTrackKeys,
                 durationMs = controller.duration.coerceAtLeast(0L),
                 currentPositionMs = controller.currentPosition.coerceAtLeast(0L),
                 bufferedPositionMs = controller.bufferedPosition.coerceAtLeast(0L),
@@ -102,15 +112,7 @@ class AudioPlaybackManager(
         val currentTarget = _uiState.value.activeTarget
         when (currentTarget) {
           is ActiveAudioTarget.SurahTrack -> handleSurahPlaybackError(currentTarget)
-          ActiveAudioTarget.CairoRadio -> {
-            _uiState.update { state ->
-              state.copy(
-                isPlaying = false,
-                isBuffering = false,
-                errorMessage = "تعذر الاتصال ببث إذاعة القرآن الكريم من القاهرة. تحقق من اتصال الإنترنت.",
-              )
-            }
-          }
+          ActiveAudioTarget.CairoRadio -> handleCairoRadioPlaybackError()
           null -> {
             _uiState.update { state ->
               state.copy(isPlaying = false, isBuffering = false, errorMessage = "تعذر تشغيل الصوت.")
@@ -129,10 +131,18 @@ class AudioPlaybackManager(
     ensureControllerConnected()
   }
 
+  private fun buildSurahCandidateUrls(riwayah: Riwayah, surahNumber: Int): List<String> {
+    val primaryAndFallbacks = riwayah.candidateSurahUrls(surahNumber)
+    val httpMirrors =
+      primaryAndFallbacks
+        .filter { it.startsWith("https://", ignoreCase = true) }
+        .map { "http://" + it.removePrefix("https://") }
+    return (primaryAndFallbacks + httpMirrors).distinct()
+  }
+
   private fun handleSurahPlaybackError(currentTarget: ActiveAudioTarget.SurahTrack) {
     val fallbackUrl =
-      currentTarget.riwayah
-        .candidateSurahUrls(currentTarget.surah.number)
+      buildSurahCandidateUrls(currentTarget.riwayah, currentTarget.surah.number)
         .firstOrNull { !triedUrlsForCurrentTrack.contains(it) }
 
     if (fallbackUrl != null) {
@@ -171,7 +181,7 @@ class AudioPlaybackManager(
 
         val freshUrl =
           updatedRiwayah
-            ?.candidateSurahUrls(currentTarget.surah.number)
+            ?.let { buildSurahCandidateUrls(it, currentTarget.surah.number) }
             ?.firstOrNull { !triedUrlsForCurrentTrack.contains(it) }
 
         if (updatedReciter != null && updatedRiwayah != null && freshUrl != null) {
@@ -196,12 +206,39 @@ class AudioPlaybackManager(
             portraitUrl = currentPortraitUrl,
           )
         } else {
-          markSurahUnavailable(currentTarget)
+          retrySurahTransientOrFail(currentTarget)
         }
       }
       return
     }
 
+    retrySurahTransientOrFail(currentTarget)
+  }
+
+  private fun retrySurahTransientOrFail(currentTarget: ActiveAudioTarget.SurahTrack) {
+    if (!surahTransientRetryDone) {
+      surahTransientRetryDone = true
+      _uiState.update { it.copy(isPlaying = false, isBuffering = true) }
+      scope.launch {
+        delay(1_000L)
+        val activeNow = _uiState.value.activeTarget as? ActiveAudioTarget.SurahTrack
+        if (
+          activeNow == null ||
+            activeNow.reciter.id != currentTarget.reciter.id ||
+            activeNow.surah.number != currentTarget.surah.number
+        ) {
+          return@launch
+        }
+        val retryUrl = buildSurahCandidateUrls(currentTarget.riwayah, currentTarget.surah.number).first()
+        playTrackUrl(
+          target = currentTarget,
+          url = retryUrl,
+          startPositionMs = currentStartPositionMs,
+          portraitUrl = currentPortraitUrl,
+        )
+      }
+      return
+    }
     markSurahUnavailable(currentTarget)
   }
 
@@ -214,6 +251,62 @@ class AudioPlaybackManager(
         unavailableTrackKeys = state.unavailableTrackKeys + failedKey,
         errorMessage =
           "سورة ${target.surah.nameAr} غير متوفرة حالياً بصوت ${target.reciter.nameAr} (${target.riwayah.nameAr})",
+      )
+    }
+  }
+
+  private fun buildRadioCandidateUrls(): List<String> {
+    val repoUrls = catalogRepository?.getCairoRadioUrls().orEmpty()
+    return (repoUrls + QuranCatalog.CAIRO_RADIO_FALLBACK_URLS).distinct()
+  }
+
+  private fun handleCairoRadioPlaybackError() {
+    val nextUrl = buildRadioCandidateUrls().firstOrNull { !triedRadioUrls.contains(it) }
+    if (nextUrl != null) {
+      triedRadioUrls.add(nextUrl)
+      playCairoRadioUrl(nextUrl)
+      return
+    }
+
+    val repo = catalogRepository
+    if (!refreshedRadiosForCurrentAttempt && repo != null) {
+      refreshedRadiosForCurrentAttempt = true
+      _uiState.update { it.copy(isPlaying = false, isBuffering = true) }
+      scope.launch {
+        repo.refreshRadios()
+        if (_uiState.value.activeTarget != ActiveAudioTarget.CairoRadio) return@launch
+        val freshUrl = buildRadioCandidateUrls().firstOrNull { !triedRadioUrls.contains(it) }
+        if (freshUrl != null) {
+          triedRadioUrls.add(freshUrl)
+          playCairoRadioUrl(freshUrl)
+        } else {
+          retryCairoRadioTransientOrFail()
+        }
+      }
+      return
+    }
+
+    retryCairoRadioTransientOrFail()
+  }
+
+  private fun retryCairoRadioTransientOrFail() {
+    if (!radioTransientRetryDone) {
+      radioTransientRetryDone = true
+      _uiState.update { it.copy(isPlaying = false, isBuffering = true) }
+      scope.launch {
+        delay(1_200L)
+        if (_uiState.value.activeTarget != ActiveAudioTarget.CairoRadio) return@launch
+        val primaryUrl = buildRadioCandidateUrls().first()
+        playCairoRadioUrl(primaryUrl)
+      }
+      return
+    }
+
+    _uiState.update { state ->
+      state.copy(
+        isPlaying = false,
+        isBuffering = false,
+        errorMessage = "تعذر الاتصال ببث إذاعة القرآن الكريم من القاهرة. تحقق من اتصال الإنترنت.",
       )
     }
   }
@@ -274,20 +367,31 @@ class AudioPlaybackManager(
     startPositionMs: Long = 0L,
     portraitUrl: String? = null,
   ) {
-    val target = ActiveAudioTarget.SurahTrack(reciter, riwayah, surah)
-    val url = riwayah.surahUrl(surah.number)
+    val resolvedReciter = catalogRepository?.findReciter(reciter.id) ?: reciter
+    val resolvedRiwayah =
+      catalogRepository?.findUpdatedRiwayah(
+        reciterId = reciter.id,
+        riwayahNameAr = riwayah.nameAr,
+        previousBaseUrl = riwayah.baseUrl,
+      ) ?: riwayah
+    val target = ActiveAudioTarget.SurahTrack(resolvedReciter, resolvedRiwayah, surah)
+    val initialKey = ActiveAudioTarget.SurahTrack(reciter, riwayah, surah).trackKey
+    val candidateUrls = buildSurahCandidateUrls(resolvedRiwayah, surah.number)
+    val url = candidateUrls.first()
 
     triedUrlsForCurrentTrack.clear()
     triedUrlsForCurrentTrack.add(url)
     refreshedCatalogForCurrentTrack = false
+    surahTransientRetryDone = false
     currentStartPositionMs = startPositionMs
     currentPortraitUrl = portraitUrl
 
-    _uiState.update {
-      it.copy(
+    _uiState.update { state ->
+      state.copy(
         activeTarget = target,
         isBuffering = true,
         errorMessage = null,
+        unavailableTrackKeys = state.unavailableTrackKeys - target.trackKey - initialKey,
         currentPositionMs = startPositionMs,
         durationMs = 0L,
       )
@@ -343,6 +447,14 @@ class AudioPlaybackManager(
   }
 
   fun playCairoRadio() {
+    val candidates = buildRadioCandidateUrls()
+    val firstUrl = candidates.first()
+
+    triedRadioUrls.clear()
+    triedRadioUrls.add(firstUrl)
+    refreshedRadiosForCurrentAttempt = false
+    radioTransientRetryDone = false
+
     _uiState.update {
       it.copy(
         activeTarget = ActiveAudioTarget.CairoRadio,
@@ -353,6 +465,10 @@ class AudioPlaybackManager(
       )
     }
 
+    playCairoRadioUrl(firstUrl)
+  }
+
+  private fun playCairoRadioUrl(url: String) {
     withController { controller ->
       val metadata =
         MediaMetadata.Builder()
@@ -363,7 +479,7 @@ class AudioPlaybackManager(
 
       val mediaItem =
         MediaItem.Builder()
-          .setUri(QuranCatalog.CAIRO_RADIO_STREAM_URL)
+          .setUri(url)
           .setMediaId("cairo_radio_live")
           .setMediaMetadata(metadata)
           .build()
@@ -379,10 +495,23 @@ class AudioPlaybackManager(
       if (controller.isPlaying) {
         controller.pause()
       } else {
-        if (_uiState.value.activeTarget == ActiveAudioTarget.CairoRadio &&
-          controller.playbackState == Player.STATE_IDLE
+        val currentTarget = _uiState.value.activeTarget
+        if (
+          currentTarget == ActiveAudioTarget.CairoRadio &&
+            (controller.playbackState == Player.STATE_IDLE || controller.playerError != null)
         ) {
           playCairoRadio()
+        } else if (
+          currentTarget is ActiveAudioTarget.SurahTrack &&
+            (controller.playbackState == Player.STATE_IDLE || controller.playerError != null)
+        ) {
+          playSurah(
+            reciter = currentTarget.reciter,
+            riwayah = currentTarget.riwayah,
+            surah = currentTarget.surah,
+            startPositionMs = currentStartPositionMs,
+            portraitUrl = currentPortraitUrl,
+          )
         } else {
           if (controller.playbackState == Player.STATE_IDLE) {
             controller.prepare()

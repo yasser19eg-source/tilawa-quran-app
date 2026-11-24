@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="olive_accent">#FF7A9A82</color>
-    <color name="dark_bg">#FF121413</color>
-    <color name="dark_surface">#FF1C201E</color>
-    <color name="light_bg">#FFF6F5F0</color>
+    <color name="olive_accent">#FF8EB398</color>
+    <color name="dark_bg">#FF1F2623</color>
+    <color name="dark_surface">#FF2A332F</color>
+    <color name="light_bg">#FFF7F8F5</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>

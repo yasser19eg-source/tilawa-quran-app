@@ -89,11 +89,18 @@ class MainViewModel(
   private val _surahSearchQuery = MutableStateFlow("")
   val surahSearchQuery: StateFlow<String> = _surahSearchQuery.asStateFlow()
 
+  private val _showSplash = MutableStateFlow(true)
+  val showSplash: StateFlow<Boolean> = _showSplash.asStateFlow()
+
   private val _isPlayerExpanded = MutableStateFlow(false)
   val isPlayerExpanded: StateFlow<Boolean> = _isPlayerExpanded.asStateFlow()
 
   init {
     preloadFeaturedReciterPortraits()
+  }
+
+  fun dismissSplash() {
+    _showSplash.value = false
   }
 
   private fun preloadFeaturedReciterPortraits() {

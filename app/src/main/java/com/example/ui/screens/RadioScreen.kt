@@ -137,7 +137,7 @@ fun RadioScreen(
                     Brush.verticalGradient(
                       colors =
                         listOf(
-                          Color(0x55121413),
+                          Color(0x4D222A26),
                           MaterialTheme.colorScheme.surface,
                         )
                     )
@@ -147,7 +147,7 @@ fun RadioScreen(
             // Live status pill
             Surface(
               color =
-                if (isLivePlaying) Color(0xCC24382A)
+                if (isLivePlaying) Color(0xCC31493A)
                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
               shape = RoundedCornerShape(50),
               border =
@@ -241,6 +241,8 @@ fun RadioScreen(
             }
           }
 
+          val hasRadioError = isRadioSelected && !isLivePlaying && !isBuffering && playbackState.errorMessage != null
+
           Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -253,9 +255,16 @@ fun RadioScreen(
               textAlign = TextAlign.Center,
             )
             Text(
-              text = "بث إذاعي متواصل لتلاوات كبار القراء والبرامج الدينية من القاهرة على مدار الساعة",
+              text =
+                if (hasRadioError) {
+                  "تعذر الوصول إلى الخادم الحالي — اضغط لإعادة المحاولة عبر الخوادم البديلة"
+                } else {
+                  "بث إذاعي متواصل لتلاوات كبار القراء والبرامج الدينية من القاهرة على مدار الساعة"
+                },
               style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              color =
+                if (hasRadioError) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant,
               textAlign = TextAlign.Center,
             )
           }
@@ -285,7 +294,12 @@ fun RadioScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = if (isLivePlaying || isBuffering) "إيقاف البث" else "تشغيل البث المباشر",
+              text =
+                when {
+                  isLivePlaying || isBuffering -> "إيقاف البث"
+                  hasRadioError -> "إعادة المحاولة"
+                  else -> "تشغيل البث المباشر"
+                },
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.Bold,
             )

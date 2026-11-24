@@ -105,7 +105,7 @@ fun SadaqahScreen(
                       Brush.verticalGradient(
                         colors =
                           listOf(
-                            Color(0x66121413),
+                            Color(0x55222A26),
                             MaterialTheme.colorScheme.surface,
                           )
                       )

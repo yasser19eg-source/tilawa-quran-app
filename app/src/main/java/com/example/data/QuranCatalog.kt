@@ -10,6 +10,15 @@ import java.util.Calendar
 object QuranCatalog {
 
   const val CAIRO_RADIO_STREAM_URL = "https://stream.radiojar.com/8s5u5tpdtwzuv"
+
+  val CAIRO_RADIO_FALLBACK_URLS: List<String> =
+    listOf(
+      CAIRO_RADIO_STREAM_URL,
+      "https://n12.radiojar.com/8s5u5tpdtwzuv",
+      "http://stream.radiojar.com/8s5u5tpdtwzuv",
+      "http://n12.radiojar.com/8s5u5tpdtwzuv",
+    )
+
   const val DEDICATED_PERSON_NAME = "عبد العظيم رجب زكي"
 
   val reciters: List<Reciter> =
