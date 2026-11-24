@@ -1,0 +1,33 @@
+<resources>
+    <string name="app_name">تلاوة</string>
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_reciters">القراء</string>
+    <string name="nav_radio">الإذاعة</string>
+    <string name="nav_sadaqah">صدقة جارية</string>
+    <string name="nav_settings">الإعدادات</string>
+    <string name="action_previous">السابق</string>
+    <string name="action_play">تشغيل</string>
+    <string name="action_pause">إيقاف مؤقت</string>
+    <string name="action_stop">إيقاف</string>
+    <string name="action_share">مشاركة</string>
+    <string name="action_copy">نسخ</string>
+    <string name="today_recitation">تلاوة اليوم</string>
+    <string name="continue_listening">متابعة الاستماع</string>
+    <string name="daily_wird_title">الورد اليومي</string>
+    <string name="daily_wird_channel_name">تذكير الورد اليومي</string>
+    <string name="section_most_listened">القراء الأكثر استماعاً</string>
+    <string name="section_hafs">تلاوات برواية حفص عن عاصم</string>
+    <string name="section_warsh">تلاوات برواية ورش عن نافع</string>
+    <string name="section_qalon_dori">تلاوات برواية قالون والدوري</string>
+    <string name="section_mojawwad">المصحف المجود</string>
+    <string name="search_reciters_hint">ابحث عن قارئ...</string>
+    <string name="search_surahs_hint">ابحث عن سورة...</string>
+    <string name="cairo_radio_title">إذاعة القرآن الكريم من القاهرة</string>
+    <string name="cairo_radio_subtitle">البث المباشر من القاهرة</string>
+    <string name="live_now">بث مباشر</string>
+    <string name="buffering">جاري التحميل...</string>
+    <string name="track_unavailable">غير متوفر حالياً على الخادم</string>
+    <string name="dedication_name">عبد العظيم رجب زكي</string>
+    <string name="dedication_subtitle">صدقة جارية عن روح المرحوم بإذن الله</string>
+    <string name="notification_channel_name">تلاوة القرآن والإذاعة</string>
+</resources>
