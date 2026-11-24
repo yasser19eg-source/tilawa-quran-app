@@ -22,11 +22,9 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate Gradle Wrapper if missing
+      - name: Generate Gradle 9.3.1 Wrapper
         run: |
-          if [ ! -f ./gradlew ]; then
-            gradle wrapper --gradle-version 8.7 --distribution-type bin
-          fi
+          gradle wrapper --gradle-version 9.3.1 --distribution-type bin
           chmod +x gradlew
 
       - name: Build Debug APK
