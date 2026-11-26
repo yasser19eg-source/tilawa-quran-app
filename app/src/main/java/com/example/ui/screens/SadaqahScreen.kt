@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,6 +40,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -54,6 +56,7 @@ import com.example.R
 import com.example.data.QuranCatalog
 import com.example.model.MemorialDua
 import com.example.ui.theme.AmiriFontFamily
+import com.example.ui.theme.WarmGoldMuted
 
 @Composable
 fun SadaqahScreen(
@@ -142,11 +145,77 @@ fun SadaqahScreen(
               horizontalAlignment = Alignment.CenterHorizontally,
               verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+              // Framed Memorial Portrait (preserves original 896x1200 aspect ratio & full face without cropping)
+              Surface(
+                modifier = Modifier.testTag("sadaqah_memorial_portrait"),
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                border =
+                  BorderStroke(
+                    width = 1.5.dp,
+                    brush =
+                      Brush.linearGradient(
+                        colors =
+                          listOf(
+                            WarmGoldMuted.copy(alpha = 0.85f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.70f),
+                            WarmGoldMuted.copy(alpha = 0.85f),
+                          )
+                      ),
+                  ),
+                tonalElevation = 2.dp,
+                shadowElevation = 4.dp,
+              ) {
+                Box(modifier = Modifier.padding(6.dp)) {
+                  Image(
+                    painter = painterResource(id = R.drawable.img_sadaqah_abdelazim),
+                    contentDescription = "صورة المرحوم بإذن الله عبد العظيم رجب زكي",
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.TopCenter,
+                    modifier =
+                      Modifier.width(156.dp)
+                        .aspectRatio(896f / 1200f)
+                        .clip(RoundedCornerShape(16.dp)),
+                  )
+                }
+              }
+
+              Spacer(modifier = Modifier.height(2.dp))
+
+              Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+              ) {
+                Text(
+                  text = "المغفور له بإذن الله",
+                  style =
+                    MaterialTheme.typography.bodyLarge.copy(
+                      fontFamily = AmiriFontFamily,
+                      fontWeight = FontWeight.Normal,
+                    ),
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  textAlign = TextAlign.Center,
+                  modifier = Modifier.testTag("sadaqah_memorial_honorific"),
+                )
+                Text(
+                  text = "الحاج ${QuranCatalog.DEDICATED_PERSON_NAME}",
+                  style =
+                    MaterialTheme.typography.headlineMedium.copy(
+                      fontFamily = AmiriFontFamily,
+                      fontWeight = FontWeight.Bold,
+                    ),
+                  color = MaterialTheme.colorScheme.onSurface,
+                  textAlign = TextAlign.Center,
+                  modifier = Modifier.testTag("sadaqah_memorial_name"),
+                )
+              }
+
               Text(
-                text = QuranCatalog.DEDICATED_PERSON_NAME,
-                style = MaterialTheme.typography.displaySmall.copy(fontFamily = AmiriFontFamily),
-                color = MaterialTheme.colorScheme.onSurface,
+                text = "رحمه الله وأسكنه فسيح جناته، وجعل هذا العمل صدقة جارية له",
+                style = MaterialTheme.typography.titleSmall.copy(fontFamily = AmiriFontFamily),
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.testTag("sadaqah_memorial_short_dua"),
               )
 
               Text(

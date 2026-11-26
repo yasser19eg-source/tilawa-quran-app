@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -28,7 +29,7 @@ data class LastPlayedRecord(
 )
 
 data class UserPreferencesState(
-  val isDarkMode: Boolean = true,
+  val isDarkMode: Boolean = false,
   val fontScaleOption: FontScaleOption = FontScaleOption.MEDIUM,
   val autoPlayNext: Boolean = true,
   val favoriteReciterIds: Set<String> = emptySet(),
@@ -40,6 +41,11 @@ data class UserPreferencesState(
   val wirdGoal: DailyWirdGoal = DailyWirdGoal.PAGE,
   val lastCompletedWirdEpochDay: Long? = null,
   val wirdStreakDays: Int = 0,
+  val lastReadSurahNumber: Int = 1,
+  val lastReadAyahNumber: Int = 1,
+  val lastReadMushafPage: Int = 1,
+  val hasMushafBookmark: Boolean = false,
+  val mushafReaderFontScale: Float = 1.0f,
 ) {
   fun isTodayWirdCompleted(
     todayEpochDay: Long = UserPreferencesRepository.localEpochDay()
@@ -73,11 +79,16 @@ class UserPreferencesRepository(private val context: Context) {
     val WIRD_GOAL = stringPreferencesKey("wird_goal")
     val LAST_COMPLETED_WIRD_EPOCH_DAY = longPreferencesKey("last_completed_wird_epoch_day")
     val WIRD_STREAK_DAYS = intPreferencesKey("wird_streak_days")
+    val LAST_READ_SURAH_NUMBER = intPreferencesKey("last_read_surah_number")
+    val LAST_READ_AYAH_NUMBER = intPreferencesKey("last_read_ayah_number")
+    val LAST_READ_MUSHAF_PAGE = intPreferencesKey("last_read_mushaf_page")
+    val HAS_MUSHAF_BOOKMARK = booleanPreferencesKey("has_mushaf_bookmark")
+    val MUSHAF_READER_FONT_SCALE = floatPreferencesKey("mushaf_reader_font_scale")
   }
 
   val preferencesFlow: Flow<UserPreferencesState> =
     context.userPreferencesDataStore.data.map { prefs ->
-      val isDark = prefs[Keys.IS_DARK_MODE] ?: true
+      val isDark = prefs[Keys.IS_DARK_MODE] ?: false
       val fontScaleName = prefs[Keys.FONT_SCALE]
       val fontScale =
         FontScaleOption.entries.firstOrNull { it.name == fontScaleName } ?: FontScaleOption.MEDIUM
@@ -107,6 +118,11 @@ class UserPreferencesRepository(private val context: Context) {
         DailyWirdGoal.entries.firstOrNull { it.name == wirdGoalName } ?: DailyWirdGoal.PAGE
       val lastWirdDay = prefs[Keys.LAST_COMPLETED_WIRD_EPOCH_DAY]
       val wirdStreak = (prefs[Keys.WIRD_STREAK_DAYS] ?: 0).coerceAtLeast(0)
+      val lastReadSurah = (prefs[Keys.LAST_READ_SURAH_NUMBER] ?: 1).coerceIn(1, 114)
+      val lastReadAyah = (prefs[Keys.LAST_READ_AYAH_NUMBER] ?: 1).coerceAtLeast(1)
+      val lastReadPage = (prefs[Keys.LAST_READ_MUSHAF_PAGE] ?: 1).coerceIn(1, 604)
+      val hasBookmark = prefs[Keys.HAS_MUSHAF_BOOKMARK] ?: false
+      val readerFontScale = (prefs[Keys.MUSHAF_READER_FONT_SCALE] ?: 1.0f).coerceIn(0.8f, 1.8f)
 
       UserPreferencesState(
         isDarkMode = isDark,
@@ -121,6 +137,11 @@ class UserPreferencesRepository(private val context: Context) {
         wirdGoal = wirdGoal,
         lastCompletedWirdEpochDay = lastWirdDay,
         wirdStreakDays = wirdStreak,
+        lastReadSurahNumber = lastReadSurah,
+        lastReadAyahNumber = lastReadAyah,
+        lastReadMushafPage = lastReadPage,
+        hasMushafBookmark = hasBookmark,
+        mushafReaderFontScale = readerFontScale,
       )
     }
 
@@ -196,6 +217,29 @@ class UserPreferencesRepository(private val context: Context) {
         prefs[Keys.LAST_COMPLETED_WIRD_EPOCH_DAY] = nextDay
       }
       prefs[Keys.WIRD_STREAK_DAYS] = nextStreak
+    }
+  }
+
+  suspend fun saveMushafBookmark(surahNumber: Int, ayahNumber: Int) {
+    context.userPreferencesDataStore.edit { prefs ->
+      prefs[Keys.LAST_READ_SURAH_NUMBER] = surahNumber.coerceIn(1, 114)
+      prefs[Keys.LAST_READ_AYAH_NUMBER] = ayahNumber.coerceAtLeast(1)
+      prefs[Keys.HAS_MUSHAF_BOOKMARK] = true
+    }
+  }
+
+  suspend fun saveMushafPageBookmark(pageNumber: Int, surahNumber: Int, ayahNumber: Int) {
+    context.userPreferencesDataStore.edit { prefs ->
+      prefs[Keys.LAST_READ_MUSHAF_PAGE] = pageNumber.coerceIn(1, 604)
+      prefs[Keys.LAST_READ_SURAH_NUMBER] = surahNumber.coerceIn(1, 114)
+      prefs[Keys.LAST_READ_AYAH_NUMBER] = ayahNumber.coerceAtLeast(1)
+      prefs[Keys.HAS_MUSHAF_BOOKMARK] = true
+    }
+  }
+
+  suspend fun setMushafReaderFontScale(scale: Float) {
+    context.userPreferencesDataStore.edit { prefs ->
+      prefs[Keys.MUSHAF_READER_FONT_SCALE] = scale.coerceIn(0.8f, 1.8f)
     }
   }
 

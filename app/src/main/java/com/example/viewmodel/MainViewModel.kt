@@ -1,9 +1,14 @@
 package com.example.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import coil.ImageLoader
+import com.example.data.AdhkarCatalog
+import com.example.data.MushafPageRepository
 import com.example.data.QuranCatalog
+import com.example.data.QuranMushafRepository
 import com.example.data.RecentSearchesManager
 import com.example.data.ReciterCatalogRepository
 import com.example.data.UserPreferencesRepository
@@ -12,16 +17,24 @@ import com.example.data.WikipediaPortraitRepository
 import com.example.model.ActiveAudioTarget
 import com.example.model.AppRoute
 import com.example.model.AppTab
+import com.example.model.AyahLineBound
 import com.example.model.DailyWirdGoal
+import com.example.model.DhikrCategory
+import com.example.model.DhikrItem
 import com.example.model.FontScaleOption
+import com.example.model.MushafAyah
+import com.example.model.MushafPageMeta
+import com.example.model.MushafReaderUiState
 import com.example.model.PlaybackUiState
 import com.example.model.Reciter
 import com.example.model.ReciterFilter
 import com.example.model.Riwayah
+import com.example.model.SelectedAyahKey
 import com.example.model.SleepTimerOption
 import com.example.model.Surah
 import com.example.notifications.DailyWirdReminderManager
 import com.example.playback.AudioPlaybackManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +58,8 @@ class MainViewModel(
   private val recentSearchesManager: RecentSearchesManager,
   private val reciterCatalogRepository: ReciterCatalogRepository,
   private val portraitRepository: WikipediaPortraitRepository,
+  private val quranMushafRepository: QuranMushafRepository,
+  private val mushafPageRepository: MushafPageRepository,
   private val playbackManager: AudioPlaybackManager,
   private val wirdReminderManager: DailyWirdReminderManager,
 ) : ViewModel() {
@@ -94,6 +109,18 @@ class MainViewModel(
 
   private val _isPlayerExpanded = MutableStateFlow(false)
   val isPlayerExpanded: StateFlow<Boolean> = _isPlayerExpanded.asStateFlow()
+
+  private val _mushafReaderState =
+    MutableStateFlow<MushafReaderUiState>(MushafReaderUiState.Loading(1))
+  val mushafReaderState: StateFlow<MushafReaderUiState> = _mushafReaderState.asStateFlow()
+
+  private val _cachedMushafSurahs = MutableStateFlow(quranMushafRepository.cachedSurahNumbers())
+  val cachedMushafSurahs: StateFlow<Set<Int>> = _cachedMushafSurahs.asStateFlow()
+
+  private val _adhkarCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
+  val adhkarCounts: StateFlow<Map<String, Int>> = _adhkarCounts.asStateFlow()
+
+  private var mushafLoadJob: Job? = null
 
   init {
     preloadFeaturedReciterPortraits()
@@ -163,6 +190,118 @@ class MainViewModel(
       if (state.currentRoute == target) state
       else state.copy(backStack = (state.backStack + target).takeLast(24))
     }
+  }
+
+  fun openQuranMushaf() {
+    _cachedMushafSurahs.value = quranMushafRepository.cachedSurahNumbers()
+    viewModelScope.launch { mushafPageRepository.ensureAssetsLoaded() }
+    val target = AppRoute.QuranMushaf
+    _navState.update { state ->
+      if (state.currentRoute == target) state
+      else state.copy(backStack = (state.backStack + target).takeLast(24))
+    }
+  }
+
+  fun openMushafPage(pageNumber: Int) {
+    val safePage = pageNumber.coerceIn(1, MushafPageRepository.TOTAL_MUSHAF_PAGES)
+    viewModelScope.launch { mushafPageRepository.ensureAssetsLoaded() }
+    val target = AppRoute.MushafPageReader(safePage)
+    _navState.update { state ->
+      if (state.currentRoute == target) state
+      else state.copy(backStack = (state.backStack + target).takeLast(24))
+    }
+  }
+
+  fun openSurahReader(surahNumber: Int) {
+    val safeNumber = surahNumber.coerceIn(1, 114)
+    val target = AppRoute.SurahReader(safeNumber)
+    _navState.update { state ->
+      if (state.currentRoute == target) state
+      else state.copy(backStack = (state.backStack + target).takeLast(24))
+    }
+    loadSurahForReading(safeNumber)
+  }
+
+  fun getMushafPageMeta(pageNumber: Int): MushafPageMeta =
+    mushafPageRepository.getPageMeta(pageNumber)
+
+  fun getMushafPageBounds(pageNumber: Int): List<AyahLineBound> =
+    mushafPageRepository.getPageBounds(pageNumber)
+
+  fun onMushafPageViewed(pageNumber: Int, imageLoader: ImageLoader, context: Context) {
+    mushafPageRepository.prefetchAdjacentPages(imageLoader, context, pageNumber)
+    viewModelScope.launch { mushafPageRepository.loadPageAyahs(pageNumber) }
+  }
+
+  suspend fun resolveSelectedMushafAyahs(
+    pageNumber: Int,
+    selectedKeys: List<SelectedAyahKey>,
+  ): Result<List<MushafAyah>> =
+    mushafPageRepository.resolveSelectedAyahs(pageNumber, selectedKeys)
+
+  suspend fun loadSurahForShare(surahNumber: Int): Result<List<MushafAyah>> =
+    quranMushafRepository.loadSurah(surahNumber.coerceIn(1, 114)).map { it.content.ayahs }
+
+  fun openAdhkar() {
+    val target = AppRoute.Adhkar
+    _navState.update { state ->
+      if (state.currentRoute == target) state
+      else state.copy(backStack = (state.backStack + target).takeLast(24))
+    }
+  }
+
+  fun loadSurahForReading(surahNumber: Int, forceRefresh: Boolean = false) {
+    val safeNumber = surahNumber.coerceIn(1, 114)
+    mushafLoadJob?.cancel()
+    _mushafReaderState.value = MushafReaderUiState.Loading(safeNumber)
+    mushafLoadJob =
+      viewModelScope.launch {
+        val result = quranMushafRepository.loadSurah(safeNumber, forceRefresh = forceRefresh)
+        result.fold(
+          onSuccess = { loaded ->
+            _cachedMushafSurahs.value = quranMushafRepository.cachedSurahNumbers()
+            _mushafReaderState.value =
+              MushafReaderUiState.Success(
+                content = loaded.content,
+                isFromCache = loaded.isFromCache,
+              )
+          },
+          onFailure = {
+            _mushafReaderState.value =
+              MushafReaderUiState.Error(
+                surahNumber = safeNumber,
+                messageAr = "تعذر تحميل السورة والتفسير الميسر. يرجى التحقق من الاتصال بالإنترنت.",
+              )
+          },
+        )
+      }
+  }
+
+  fun saveMushafBookmark(surahNumber: Int, ayahNumber: Int) {
+    viewModelScope.launch { preferencesRepository.saveMushafBookmark(surahNumber, ayahNumber) }
+  }
+
+  fun saveMushafPageBookmark(pageNumber: Int, surahNumber: Int, ayahNumber: Int) {
+    viewModelScope.launch {
+      preferencesRepository.saveMushafPageBookmark(pageNumber, surahNumber, ayahNumber)
+    }
+  }
+
+  fun setMushafReaderFontScale(scale: Float) {
+    viewModelScope.launch { preferencesRepository.setMushafReaderFontScale(scale) }
+  }
+
+  fun incrementDhikrCount(dhikr: DhikrItem) {
+    _adhkarCounts.update { current ->
+      val existing = current[dhikr.id] ?: 0
+      if (existing >= dhikr.targetCount) current
+      else current + (dhikr.id to (existing + 1))
+    }
+  }
+
+  fun resetAdhkarCategory(category: DhikrCategory) {
+    val categoryIds = AdhkarCatalog.itemsForCategory(category).map { it.id }.toSet()
+    _adhkarCounts.update { current -> current - categoryIds }
   }
 
   fun navigateBack(): Boolean {
@@ -357,6 +496,8 @@ class MainViewModel(
     private val recentSearchesManager: RecentSearchesManager,
     private val reciterCatalogRepository: ReciterCatalogRepository,
     private val portraitRepository: WikipediaPortraitRepository,
+    private val quranMushafRepository: QuranMushafRepository,
+    private val mushafPageRepository: MushafPageRepository,
     private val playbackManager: AudioPlaybackManager,
     private val wirdReminderManager: DailyWirdReminderManager,
   ) : ViewModelProvider.Factory {
@@ -367,6 +508,8 @@ class MainViewModel(
         recentSearchesManager = recentSearchesManager,
         reciterCatalogRepository = reciterCatalogRepository,
         portraitRepository = portraitRepository,
+        quranMushafRepository = quranMushafRepository,
+        mushafPageRepository = mushafPageRepository,
         playbackManager = playbackManager,
         wirdReminderManager = wirdReminderManager,
       ) as T

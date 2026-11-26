@@ -1,15 +1,25 @@
 package com.example
 
+import com.example.data.AdhkarCatalog
+import com.example.data.AlQuranAyahDto
 import com.example.data.Mp3QuranMoshafDto
 import com.example.data.Mp3QuranRadioDto
 import com.example.data.Mp3QuranReciterDto
+import com.example.data.MushafPageRepository
 import com.example.data.QuranCatalog
+import com.example.data.QuranMushafRepository
 import com.example.data.ReciterCatalogRepository
 import com.example.data.UserPreferencesRepository
+import com.example.data.UserPreferencesState
 import com.example.data.WikipediaPortraitRepository
+import com.example.model.AyahLineBound
+import com.example.model.DhikrCategory
+import com.example.model.MushafAyah
 import com.example.model.PlaybackUiState
 import com.example.model.Riwayah
+import com.example.model.SelectedAyahKey
 import com.example.notifications.DailyWirdReminderScheduler
+import com.example.ui.components.AyahShareCardGenerator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -249,5 +259,201 @@ class ExampleUnitTest {
       )
     assertEquals(1f, clamped.progressFraction, 0.0001f)
     assertEquals(1f, clamped.bufferedFraction, 0.0001f)
+  }
+
+  @Test
+  fun adhkar_catalog_covers_all_categories_with_valid_targets() {
+    DhikrCategory.entries.forEach { category ->
+      val items = AdhkarCatalog.itemsForCategory(category)
+      assertTrue("Category ${category.titleAr} must not be empty", items.isNotEmpty())
+      items.forEach { item ->
+        assertTrue(item.textAr.isNotBlank())
+        assertTrue(item.targetCount > 0)
+      }
+    }
+  }
+
+  @Test
+  fun mushaf_repository_merges_uthmani_with_tafsir_muyassar_and_handles_basmalah() {
+    // Surah 1 preserves Basmalah as Ayah 1
+    val fatihah =
+      QuranMushafRepository.mergeEditions(
+        surahNumber = 1,
+        uthmaniAyahs =
+          listOf(
+            AlQuranAyahDto(
+              number = 1,
+              text = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
+              numberInSurah = 1,
+              juz = 1,
+              page = 1,
+            )
+          ),
+        tafsirAyahs =
+          listOf(
+            AlQuranAyahDto(
+              number = 1,
+              text = "أبتدئ قراءة القرآن باسم الله...",
+              numberInSurah = 1,
+              juz = 1,
+              page = 1,
+            )
+          ),
+      )
+    assertEquals(1, fatihah.size)
+    assertTrue(fatihah.first().textAr.contains("بِسْمِ"))
+    assertEquals("أبتدئ قراءة القرآن باسم الله...", fatihah.first().tafsirMuyassarAr)
+
+    // Surah 2 strips leading Basmalah from Ayah 1 cleanly
+    val baqarah =
+      QuranMushafRepository.mergeEditions(
+        surahNumber = 2,
+        uthmaniAyahs =
+          listOf(
+            AlQuranAyahDto(
+              number = 8,
+              text = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ الٓمٓ",
+              numberInSurah = 1,
+              juz = 1,
+              page = 2,
+            )
+          ),
+        tafsirAyahs =
+          listOf(
+            AlQuranAyahDto(
+              number = 8,
+              text = "هذه الحروف وغيرها...",
+              numberInSurah = 1,
+              juz = 1,
+              page = 2,
+            )
+          ),
+      )
+    assertEquals("الٓمٓ", baqarah.first().textAr)
+    assertEquals("هذه الحروف وغيرها...", baqarah.first().tafsirMuyassarAr)
+  }
+
+  @Test
+  fun mushaf_page_repository_maps_all_114_surahs_and_30_juzs_to_604_pages() {
+    assertEquals(114, MushafPageRepository.SURAH_START_PAGES.size)
+    assertEquals(30, MushafPageRepository.JUZ_START_PAGES.size)
+    assertEquals(1, MushafPageRepository.startPageForSurah(1))
+    assertEquals(2, MushafPageRepository.startPageForSurah(2))
+    assertEquals(293, MushafPageRepository.startPageForSurah(18))
+    assertEquals(604, MushafPageRepository.startPageForSurah(114))
+    assertEquals(1, MushafPageRepository.startPageForJuz(1))
+    assertEquals(282, MushafPageRepository.startPageForJuz(15))
+    assertEquals(582, MushafPageRepository.startPageForJuz(30))
+    assertEquals(
+      "https://files.quran.app/hafs/madani/width_1260/page003.png",
+      MushafPageRepository.candidatePageImageUrls(3).first(),
+    )
+  }
+
+  @Test
+  fun mushaf_coordinate_hit_testing_and_consecutive_range_selection_work_accurately() {
+    val page1Bounds =
+      listOf(
+        AyahLineBound(1, 1, 410, 254, 854, 333),
+        AyahLineBound(1, 2, 318, 365, 945, 442),
+        AyahLineBound(1, 3, 648, 474, 1009, 552),
+        AyahLineBound(1, 4, 254, 474, 649, 548),
+      )
+    val hitAyah1 =
+      MushafPageRepository.findAyahAtNormalizedPoint(
+        bounds = page1Bounds,
+        normX = 630f / MushafPageRepository.MUSHAF_IMAGE_WIDTH,
+        normY = 290f / MushafPageRepository.MUSHAF_IMAGE_HEIGHT,
+      )
+    assertEquals(SelectedAyahKey(1, 1), hitAyah1)
+
+    val hitAyah4 =
+      MushafPageRepository.findAyahAtNormalizedPoint(
+        bounds = page1Bounds,
+        normX = 450f / MushafPageRepository.MUSHAF_IMAGE_WIDTH,
+        normY = 510f / MushafPageRepository.MUSHAF_IMAGE_HEIGHT,
+      )
+    assertEquals(SelectedAyahKey(1, 4), hitAyah4)
+
+    val range =
+      MushafPageRepository.computeConsecutiveRange(
+        anchor = SelectedAyahKey(1, 1),
+        target = SelectedAyahKey(1, 4),
+      )
+    assertEquals(
+      listOf(
+        SelectedAyahKey(1, 1),
+        SelectedAyahKey(1, 2),
+        SelectedAyahKey(1, 3),
+        SelectedAyahKey(1, 4),
+      ),
+      range,
+    )
+
+    // Cross-surah tap starts new Surah selection cleanly
+    val crossSurah =
+      MushafPageRepository.computeConsecutiveRange(
+        anchor = SelectedAyahKey(112, 4),
+        target = SelectedAyahKey(113, 1),
+      )
+    assertEquals(listOf(SelectedAyahKey(113, 1)), crossSurah)
+  }
+
+  @Test
+  fun ayah_share_formatted_text_includes_brand_and_memorial_dua() {
+    val surah = QuranCatalog.findSurah(1)!!
+    val ayahs =
+      listOf(
+        MushafAyah(
+          numberInSurah = 1,
+          globalNumber = 1,
+          textAr = "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ",
+          tafsirMuyassarAr = "أبتدئ قراءة القرآن باسم الله...",
+          juz = 1,
+          page = 1,
+        )
+      )
+    val text = AyahShareCardGenerator.buildShareTextFormatted(surah, ayahs)
+    assertTrue(text.contains("تلاوة"))
+    assertTrue(text.contains("نسألكم الدعاء للمغفور له بإذن الله الحاج عبد العظيم رجب زكي"))
+  }
+
+  @Test
+  fun surah_and_juz_index_ranges_are_complete_and_consistent() {
+    assertEquals(114, MushafPageRepository.SURAH_END_PAGES.size)
+    assertEquals(114, MushafPageRepository.SURAH_FIRST_JUZ.size)
+    assertEquals(114, MushafPageRepository.SURAH_LAST_JUZ.size)
+    assertEquals(30, MushafPageRepository.JUZ_END_PAGES.size)
+
+    for (surah in 1..114) {
+      val start = MushafPageRepository.startPageForSurah(surah)
+      val end = MushafPageRepository.endPageForSurah(surah)
+      val juzRange = MushafPageRepository.juzRangeForSurah(surah)
+      assertTrue("Surah $surah start <= end", start in 1..end && end <= 604)
+      assertTrue("Surah $surah juz range valid", juzRange.first in 1..30 && juzRange.last in juzRange.first..30)
+    }
+
+    assertEquals(1..3, MushafPageRepository.juzRangeForSurah(2))
+    assertEquals(15..16, MushafPageRepository.juzRangeForSurah(18))
+    assertEquals(22, MushafPageRepository.surahOpenPageInJuz(2, 2))
+    assertEquals(302, MushafPageRepository.surahOpenPageInJuz(18, 16))
+    assertEquals(listOf(1, 2), MushafPageRepository.surahsInJuz(1).map { it.number })
+    assertEquals(37, MushafPageRepository.surahsInJuz(30).size)
+  }
+
+  @Test
+  fun warm_mushaf_paper_and_calm_sage_palette_tokens_match_specification() {
+    assertFalse(UserPreferencesState().isDarkMode)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFFF6F3EC), com.example.ui.theme.LightBackground)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFFFFFFFF), com.example.ui.theme.LightSurface)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFFEFECE3), com.example.ui.theme.LightSurfaceVariant)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFFDCD6C8), com.example.ui.theme.LightOutline)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFF2E6F5E), com.example.ui.theme.LightOlivePrimary)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFFB8924A), com.example.ui.theme.WarmGoldMuted)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFF1E2A25), com.example.ui.theme.LightTextPrimary)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFF5A6962), com.example.ui.theme.LightTextSecondary)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFF232624), com.example.ui.theme.MushafPrintedInkLight)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFFEDE8DC), com.example.ui.theme.MushafPrintedInkDark)
+    assertEquals(androidx.compose.ui.graphics.Color(0xFF1E2B25), com.example.ui.theme.MushafCardDarkBg)
   }
 }

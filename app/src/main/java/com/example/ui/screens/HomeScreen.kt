@@ -90,6 +90,8 @@ fun HomeScreen(
   onResumeLastPlayed: () -> Unit,
   onReciterClick: (Reciter) -> Unit,
   onSeeAllReciters: () -> Unit,
+  onOpenQuranMushaf: () -> Unit = {},
+  onOpenAdhkar: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val favoriteReciterIds = preferences.favoriteReciterIds
@@ -141,6 +143,17 @@ fun HomeScreen(
       contentPadding = PaddingValues(bottom = 24.dp),
       verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
+      // 0. Quick Sanctuary Access: القرآن والتفسير & الأذكار اليومية
+      item(key = "home_mushaf_adhkar_row") {
+        HomeMushafAndAdhkarRow(
+          hasBookmark = preferences.hasMushafBookmark,
+          bookmarkedSurahNumber = preferences.lastReadSurahNumber,
+          onOpenQuranMushaf = onOpenQuranMushaf,
+          onOpenAdhkar = onOpenAdhkar,
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+        )
+      }
+
       // 1. Hero Card: تلاوة اليوم
       item {
         TodayRecitationHeroCard(
@@ -310,15 +323,15 @@ private fun TodayRecitationHeroCard(
   modifier: Modifier = Modifier,
 ) {
   val bwMatrix = remember { ColorMatrix().apply { setToSaturation(0f) } }
-  val oliveDark = Color(0xFF2B3831)
+  val calmSageHero = Color(0xFF235246)
   val oliveAccent = MaterialTheme.colorScheme.primary
 
   Card(
     modifier = modifier.fillMaxWidth().testTag("today_recitation_hero_card"),
     shape = RoundedCornerShape(24.dp),
-    colors = CardDefaults.cardColors(containerColor = oliveDark),
-    border = BorderStroke(1.dp, oliveAccent.copy(alpha = 0.45f)),
-    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    colors = CardDefaults.cardColors(containerColor = calmSageHero),
+    border = BorderStroke(1.dp, Color(0xFFB8924A).copy(alpha = 0.50f)),
+    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
   ) {
     Box(modifier = Modifier.fillMaxWidth().height(226.dp)) {
       // Background reciter portrait in black & white
@@ -336,7 +349,7 @@ private fun TodayRecitationHeroCard(
         HeroStudioBackdrop()
       }
 
-      // Calm misty olive gradient overlay ensuring crisp contrast
+      // Calm sage gradient overlay ensuring serene contrast
       Box(
         modifier =
           Modifier.fillMaxSize()
@@ -344,9 +357,9 @@ private fun TodayRecitationHeroCard(
               Brush.horizontalGradient(
                 colors =
                   listOf(
-                    Color(0xEB212B26),
-                    Color(0xD42A3931),
-                    Color(0x9E394E42),
+                    Color(0xEB1E483D),
+                    Color(0xD62E6F5E),
+                    Color(0xA83D7C6B),
                   )
               )
             )
@@ -362,9 +375,9 @@ private fun TodayRecitationHeroCard(
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Surface(
-            color = oliveAccent.copy(alpha = 0.22f),
+            color = Color(0x2EFFFFFF),
             shape = RoundedCornerShape(50),
-            border = BorderStroke(1.dp, oliveAccent.copy(alpha = 0.5f)),
+            border = BorderStroke(1.dp, Color(0xFFB8924A).copy(alpha = 0.65f)),
           ) {
             Row(
               modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
@@ -374,13 +387,13 @@ private fun TodayRecitationHeroCard(
               Icon(
                 imageVector = Icons.Rounded.AutoAwesome,
                 contentDescription = null,
-                tint = Color(0xFF9CB8A3),
+                tint = Color(0xFFE7CE9B),
                 modifier = Modifier.size(15.dp),
               )
               Text(
                 text = "تلاوة اليوم",
                 style = MaterialTheme.typography.labelMedium,
-                color = Color(0xFFEDF1EE),
+                color = Color(0xFFF6F3EC),
               )
             }
           }
@@ -388,7 +401,7 @@ private fun TodayRecitationHeroCard(
           Text(
             text = riwayahName,
             style = MaterialTheme.typography.labelSmall,
-            color = Color(0xFFCBB88B),
+            color = Color(0xFFE7CE9B),
           )
         }
 
@@ -396,14 +409,14 @@ private fun TodayRecitationHeroCard(
           Text(
             text = "سورة $surahName",
             style = MaterialTheme.typography.displaySmall.copy(fontFamily = AmiriFontFamily),
-            color = Color(0xFFEDF1EE),
+            color = Color(0xFFFFFFFF),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
           )
           Text(
             text = highlightNote,
             style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFFC2CEC5),
+            color = Color(0xFFE3ECE8),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
           )
@@ -423,7 +436,7 @@ private fun TodayRecitationHeroCard(
               name = reciter.nameAr,
               portraitUrl = portraitUrl,
               style = MaterialTheme.typography.labelLarge,
-              color = Color(0xFFEDF1EE),
+              color = Color(0xFFFFFFFF),
               modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
           }
@@ -433,8 +446,8 @@ private fun TodayRecitationHeroCard(
             shape = RoundedCornerShape(50),
             colors =
               ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF8EB398),
-                contentColor = Color(0xFF1B231F),
+                containerColor = Color(0xFFF6F3EC),
+                contentColor = Color(0xFF2E6F5E),
               ),
             modifier = Modifier.testTag("play_today_recitation_button"),
           ) {
@@ -459,7 +472,7 @@ private fun HeroStudioBackdrop() {
       Modifier.fillMaxSize()
         .background(
           Brush.radialGradient(
-            colors = listOf(Color(0xFF3A4D41), Color(0xFF212B26))
+            colors = listOf(Color(0xFF397D6B), Color(0xFF235246))
           )
         ),
     contentAlignment = Alignment.CenterEnd,
@@ -467,7 +480,7 @@ private fun HeroStudioBackdrop() {
     Icon(
       imageVector = Icons.Rounded.Mic,
       contentDescription = null,
-      tint = Color(0x2E8EB398),
+      tint = Color(0x33F6F3EC),
       modifier = Modifier.padding(end = 24.dp).size(120.dp),
     )
   }
@@ -1000,3 +1013,123 @@ private fun CardFavoriteBadgeButton(
     }
   }
 }
+
+@Composable
+private fun HomeMushafAndAdhkarRow(
+  hasBookmark: Boolean,
+  bookmarkedSurahNumber: Int,
+  onOpenQuranMushaf: () -> Unit,
+  onOpenAdhkar: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val bookmarkedSurahName =
+    remember(hasBookmark, bookmarkedSurahNumber) {
+      if (hasBookmark) QuranCatalog.findSurah(bookmarkedSurahNumber)?.nameAr else null
+    }
+
+  Row(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+  ) {
+    Card(
+      onClick = onOpenQuranMushaf,
+      modifier = Modifier.weight(1f).testTag("home_open_mushaf_card"),
+      shape = RoundedCornerShape(20.dp),
+      colors =
+        CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        ),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+    ) {
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        Box(
+          modifier =
+            Modifier.size(38.dp)
+              .clip(CircleShape)
+              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+            contentDescription = "القرآن الكريم والتفسير الميسر",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+          )
+        }
+        Text(
+          text = "القرآن والتفسير",
+          style =
+            MaterialTheme.typography.titleMedium.copy(
+              fontFamily = AmiriFontFamily,
+              fontWeight = FontWeight.Bold,
+            ),
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text =
+            if (bookmarkedSurahName != null) "متابعة: سورة $bookmarkedSurahName"
+            else "فهرس السور والأجزاء • ٦٠٤ صفحات",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+    }
+
+    Card(
+      onClick = onOpenAdhkar,
+      modifier = Modifier.weight(1f).testTag("home_open_adhkar_card"),
+      shape = RoundedCornerShape(20.dp),
+      colors =
+        CardDefaults.cardColors(
+          containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
+        ),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+    ) {
+      Column(
+        modifier = Modifier.fillMaxWidth().padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+      ) {
+        Box(
+          modifier =
+            Modifier.size(38.dp)
+              .clip(CircleShape)
+              .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(
+            imageVector = Icons.Rounded.AutoAwesome,
+            contentDescription = "الأذكار اليومية للمسلم",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+          )
+        }
+        Text(
+          text = "الأذكار اليومية",
+          style =
+            MaterialTheme.typography.titleMedium.copy(
+              fontFamily = AmiriFontFamily,
+              fontWeight = FontWeight.Bold,
+            ),
+          color = MaterialTheme.colorScheme.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text = "الصباح، المساء، بعد الصلاة، والنوم",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
+    }
+  }
+}
+

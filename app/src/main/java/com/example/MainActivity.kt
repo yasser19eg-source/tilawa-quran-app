@@ -77,18 +77,24 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.imageLoader
 import com.example.model.AppRoute
 import com.example.model.AppTab
 import com.example.ui.components.ExpandedPlayerSheet
 import com.example.ui.components.MiniPlayerBar
+import com.example.data.QuranCatalog
+import com.example.ui.screens.AdhkarScreen
 import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.MushafPageReaderScreen
+import com.example.ui.screens.QuranMushafScreen
 import com.example.ui.screens.RadioScreen
 import com.example.ui.screens.ReciterDetailScreen
 import com.example.ui.screens.RecitersScreen
 import com.example.ui.screens.SadaqahScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.SplashScreen
+import com.example.ui.screens.SurahReaderScreen
 import com.example.ui.theme.AmiriFontFamily
 import com.example.ui.theme.MushafAlTilawahTheme
 import com.example.viewmodel.MainViewModel
@@ -106,6 +112,8 @@ class MainActivity : ComponentActivity() {
         recentSearchesManager = app.recentSearchesManager,
         reciterCatalogRepository = app.reciterCatalogRepository,
         portraitRepository = app.wikipediaPortraitRepository,
+        quranMushafRepository = app.quranMushafRepository,
+        mushafPageRepository = app.mushafPageRepository,
         playbackManager = app.audioPlaybackManager,
         wirdReminderManager = app.wirdReminderManager,
       )
@@ -170,6 +178,9 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
   val selectedRiwayahMap by viewModel.selectedRiwayahByReciter.collectAsStateWithLifecycle()
   val surahSearch by viewModel.surahSearchQuery.collectAsStateWithLifecycle()
   val isPlayerExpanded by viewModel.isPlayerExpanded.collectAsStateWithLifecycle()
+  val mushafReaderState by viewModel.mushafReaderState.collectAsStateWithLifecycle()
+  val cachedMushafSurahs by viewModel.cachedMushafSurahs.collectAsStateWithLifecycle()
+  val adhkarCounts by viewModel.adhkarCounts.collectAsStateWithLifecycle()
 
   var hasPromptedNotificationPermission by remember { mutableStateOf(false) }
   var pendingWirdEnableOnGrant by remember { mutableStateOf(false) }
@@ -242,6 +253,13 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
         reciters.firstOrNull { it.id == currentRoute.reciterId }?.nameAr ?: "القارئ"
       AppRoute.Favorites -> "القراء المفضلون"
       AppRoute.Settings -> "الإعدادات"
+      AppRoute.QuranMushaf -> "فهرس السور والأجزاء"
+      is AppRoute.SurahReader -> {
+        val surahName = QuranCatalog.findSurah(currentRoute.surahNumber)?.nameAr
+        if (surahName != null) "سورة $surahName" else "القرآن الكريم"
+      }
+      is AppRoute.MushafPageReader -> "المصحف الشريف"
+      AppRoute.Adhkar -> "الأذكار اليومية"
     }
 
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -279,7 +297,8 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-          CenterAlignedTopAppBar(
+          if (currentRoute !is AppRoute.MushafPageReader) {
+            CenterAlignedTopAppBar(
             title = {
               Text(
                 text = topBarTitle,
@@ -370,6 +389,7 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
                 titleContentColor = MaterialTheme.colorScheme.onBackground,
               ),
           )
+          }
         },
         bottomBar = {
           Column(
@@ -389,7 +409,11 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
               )
             }
 
-            if (!useNavigationRail) {
+            if (
+              !useNavigationRail &&
+                currentRoute !is AppRoute.SurahReader &&
+                currentRoute !is AppRoute.MushafPageReader
+            ) {
               NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 4.dp,
@@ -455,6 +479,8 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
                     },
                     onReciterClick = { reciter -> viewModel.openReciterDetail(reciter.id) },
                     onSeeAllReciters = { viewModel.navigateToTab(AppTab.RECITERS) },
+                    onOpenQuranMushaf = viewModel::openQuranMushaf,
+                    onOpenAdhkar = viewModel::openAdhkar,
                   )
                 }
 
@@ -572,6 +598,69 @@ private fun MushafAppRoot(viewModel: MainViewModel) {
                     requestWirdReminderToggle(true)
                   }
                 },
+              )
+            }
+
+            AppRoute.QuranMushaf -> {
+              QuranMushafScreen(
+                preferences = preferences,
+                cachedSurahNumbers = cachedMushafSurahs,
+                onOpenSurah = { surahNum -> viewModel.openSurahReader(surahNum) },
+                onOpenMushafPage = { pageNum -> viewModel.openMushafPage(pageNum) },
+                onBackClick = { viewModel.navigateBack() },
+              )
+            }
+
+            is AppRoute.MushafPageReader -> {
+              MushafPageReaderScreen(
+                initialPage = currentRoute.initialPage,
+                bookmarkedPage = preferences.lastReadMushafPage,
+                hasBookmark = preferences.hasMushafBookmark,
+                getPageMeta = viewModel::getMushafPageMeta,
+                getPageBounds = viewModel::getMushafPageBounds,
+                onPageChanged = { pageNum ->
+                  viewModel.onMushafPageViewed(
+                    pageNumber = pageNum,
+                    imageLoader = context.imageLoader,
+                    context = context,
+                  )
+                },
+                onResolveSelectedAyahs = viewModel::resolveSelectedMushafAyahs,
+                onLoadSurahAyahs = viewModel::loadSurahForShare,
+                onSavePageBookmark = viewModel::saveMushafPageBookmark,
+                onShowFeedback = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                onOpenFullIndex = { viewModel.navigateBack() },
+                onBackClick = { viewModel.navigateBack() },
+              )
+            }
+
+            is AppRoute.SurahReader -> {
+              SurahReaderScreen(
+                surahNumber = currentRoute.surahNumber,
+                readerState = mushafReaderState,
+                fontScale = preferences.mushafReaderFontScale,
+                bookmarkedSurahNumber = preferences.lastReadSurahNumber,
+                bookmarkedAyahNumber = preferences.lastReadAyahNumber,
+                hasBookmark = preferences.hasMushafBookmark,
+                onChangeFontScale = viewModel::setMushafReaderFontScale,
+                onSaveBookmark = viewModel::saveMushafBookmark,
+                onNavigateSurah = { nextNum -> viewModel.openSurahReader(nextNum) },
+                onLoadSurahAyahs = viewModel::loadSurahForShare,
+                onRetry = {
+                  viewModel.loadSurahForReading(currentRoute.surahNumber, forceRefresh = true)
+                },
+                onShowFeedback = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                onBackClick = { viewModel.navigateBack() },
+              )
+            }
+
+            AppRoute.Adhkar -> {
+              AdhkarScreen(
+                adhkarCounts = adhkarCounts,
+                onIncrementDhikr = viewModel::incrementDhikrCount,
+                onResetCategory = viewModel::resetAdhkarCategory,
+                onShowFeedback = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                onBackClick = { viewModel.navigateBack() },
               )
             }
           }

@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 private val SanctuaryDarkColorScheme =
@@ -15,7 +16,7 @@ private val SanctuaryDarkColorScheme =
     onPrimary = DarkBackground,
     primaryContainer = OliveDeepContainer,
     onPrimaryContainer = OliveAccentSoft,
-    secondary = WarmGoldMuted,
+    secondary = WarmGoldDark,
     onSecondary = DarkBackground,
     secondaryContainer = DarkSurfaceVariant,
     onSecondaryContainer = DarkTextPrimary,
@@ -33,9 +34,9 @@ private val SanctuaryDarkColorScheme =
 private val SanctuaryLightColorScheme =
   lightColorScheme(
     primary = LightOlivePrimary,
-    onPrimary = LightSurface,
+    onPrimary = Color.White,
     primaryContainer = LightOliveContainer,
-    onPrimaryContainer = LightOlivePrimary,
+    onPrimaryContainer = LightOliveOnContainer,
     secondary = WarmGoldMuted,
     onSecondary = LightTextPrimary,
     secondaryContainer = LightSurfaceVariant,
@@ -48,7 +49,7 @@ private val SanctuaryLightColorScheme =
     onSurfaceVariant = LightTextSecondary,
     outline = LightOutline,
     error = LightError,
-    onError = LightSurface,
+    onError = Color.White,
   )
 
 private val AppShapes =
@@ -61,7 +62,7 @@ private val AppShapes =
 
 @Composable
 fun MushafAlTilawahTheme(
-  darkTheme: Boolean = true,
+  darkTheme: Boolean = false,
   fontScaleFactor: Float = 1.0f,
   content: @Composable () -> Unit,
 ) {

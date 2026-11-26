@@ -11,13 +11,23 @@ import com.example.R
 val CairoFontFamily = FontFamily(
   Font(R.font.cairo, FontWeight.Normal),
   Font(R.font.cairo, FontWeight.Medium),
-  Font(R.font.cairo, FontWeight.SemiBold),
-  Font(R.font.cairo, FontWeight.Bold),
+  Font(R.font.cairo_semibold, FontWeight.SemiBold),
+  Font(R.font.cairo_bold, FontWeight.Bold),
 )
 
 val AmiriFontFamily = FontFamily(
   Font(R.font.amiri, FontWeight.Normal),
-  Font(R.font.amiri, FontWeight.Bold),
+  Font(R.font.amiri_bold, FontWeight.Bold),
+)
+
+val AmiriQuranFontFamily = FontFamily(
+  Font(R.font.amiri_quran, FontWeight.Normal),
+  Font(R.font.amiri_quran, FontWeight.Bold),
+)
+
+val UthmaniQuranFontFamily = FontFamily(
+  Font(R.font.amiri_quran, FontWeight.Normal),
+  Font(R.font.amiri_quran, FontWeight.Bold),
 )
 
 fun createAppTypography(scaleFactor: Float): Typography =

@@ -78,6 +78,93 @@ sealed interface AppRoute {
   data class ReciterDetail(val reciterId: String) : AppRoute
   data object Favorites : AppRoute
   data object Settings : AppRoute
+  data object QuranMushaf : AppRoute
+  data class SurahReader(val surahNumber: Int) : AppRoute
+  data class MushafPageReader(val initialPage: Int = 1) : AppRoute
+  data object Adhkar : AppRoute
+}
+
+enum class DhikrCategory(
+  val id: String,
+  val titleAr: String,
+  val subtitleAr: String,
+) {
+  MORNING("morning", "أذكار الصباح", "من طلوع الفجر حتى الضحى"),
+  EVENING("evening", "أذكار المساء", "من العصر حتى الليل"),
+  POST_PRAYER("post_prayer", "أذكار بعد الصلاة", "ما يقال عقب السلام من الفريضة"),
+  SLEEP("sleep", "أذكار النوم", "حصن المسلم قبل المنام"),
+  WAKING_UP("waking_up", "أذكار الاستيقاظ", "عند القيام من النوم"),
+  MOSQUE_WUDU("mosque_wudu", "الوضوء والمسجد", "أذكار الطهارة وبيوت الله"),
+  HOME_FOOD_TRAVEL("home_food_travel", "المنزل والطعام والسفر", "أذكار الحياة اليومية"),
+  QURANIC_DUAS("quranic_duas", "جوامع الدعاء", "أدعية قرآنية ونبوية مأثورة"),
+}
+
+data class DhikrItem(
+  val id: String,
+  val category: DhikrCategory,
+  val titleAr: String,
+  val textAr: String,
+  val targetCount: Int,
+  val sourceAr: String,
+  val virtueAr: String? = null,
+)
+
+data class MushafAyah(
+  val numberInSurah: Int,
+  val globalNumber: Int,
+  val textAr: String,
+  val tafsirMuyassarAr: String,
+  val juz: Int,
+  val page: Int,
+)
+
+data class MushafPageAyahEntry(
+  val surahNumber: Int,
+  val ayah: MushafAyah,
+)
+
+data class AyahLineBound(
+  val surahNumber: Int,
+  val ayahNumber: Int,
+  val minX: Int,
+  val minY: Int,
+  val maxX: Int,
+  val maxY: Int,
+)
+
+data class MushafPageMeta(
+  val pageNumber: Int,
+  val juzNumber: Int,
+  val firstSurahNumber: Int,
+  val firstAyahNumber: Int,
+  val surahNumbers: List<Int>,
+)
+
+data class SelectedAyahKey(
+  val surahNumber: Int,
+  val ayahNumber: Int,
+) : Comparable<SelectedAyahKey> {
+  override fun compareTo(other: SelectedAyahKey): Int {
+    val surahCmp = surahNumber.compareTo(other.surahNumber)
+    return if (surahCmp != 0) surahCmp else ayahNumber.compareTo(other.ayahNumber)
+  }
+}
+
+data class MushafSurahContent(
+  val surah: Surah,
+  val ayahs: List<MushafAyah>,
+)
+
+sealed interface MushafReaderUiState {
+  data class Loading(val surahNumber: Int) : MushafReaderUiState
+  data class Success(
+    val content: MushafSurahContent,
+    val isFromCache: Boolean,
+  ) : MushafReaderUiState
+  data class Error(
+    val surahNumber: Int,
+    val messageAr: String,
+  ) : MushafReaderUiState
 }
 
 enum class FontScaleOption(val labelAr: String, val scaleFactor: Float) {

@@ -30,4 +30,9 @@
     <string name="dedication_name">عبد العظيم رجب زكي</string>
     <string name="dedication_subtitle">صدقة جارية عن روح المرحوم بإذن الله</string>
     <string name="notification_channel_name">تلاوة القرآن والإذاعة</string>
+    <string name="quran_mushaf_title">القرآن الكريم</string>
+    <string name="quran_tafsir_subtitle">قراءة المصحف مع التفسير الميسر</string>
+    <string name="adhkar_title">الأذكار اليومية</string>
+    <string name="adhkar_subtitle">أذكار الصباح والمساء والصلاة</string>
+    <string name="tafsir_muyassar_title">التفسير الميسر</string>
 </resources>

@@ -137,7 +137,7 @@ fun RadioScreen(
                     Brush.verticalGradient(
                       colors =
                         listOf(
-                          Color(0x4D222A26),
+                          Color(0x331E2A25),
                           MaterialTheme.colorScheme.surface,
                         )
                     )
@@ -147,13 +147,13 @@ fun RadioScreen(
             // Live status pill
             Surface(
               color =
-                if (isLivePlaying) Color(0xCC31493A)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
+                if (isLivePlaying) Color(0xE62E6F5E)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f),
               shape = RoundedCornerShape(50),
               border =
                 BorderStroke(
                   1.dp,
-                  if (isLivePlaying) MaterialTheme.colorScheme.primary
+                  if (isLivePlaying) Color(0xFFB8924A)
                   else MaterialTheme.colorScheme.outline,
                 ),
               modifier = Modifier.align(Alignment.TopStart).padding(16.dp),
@@ -170,7 +170,7 @@ fun RadioScreen(
                       .clip(CircleShape)
                       .background(
                         when {
-                          isLivePlaying -> Color(0xFF7AD990)
+                          isLivePlaying -> Color(0xFF9DF0C0)
                           isBuffering -> MaterialTheme.colorScheme.secondary
                           else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
@@ -185,7 +185,7 @@ fun RadioScreen(
                     },
                   style = MaterialTheme.typography.labelMedium,
                   color =
-                    if (isLivePlaying) Color(0xFFEDF1EE)
+                    if (isLivePlaying) Color.White
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
               }

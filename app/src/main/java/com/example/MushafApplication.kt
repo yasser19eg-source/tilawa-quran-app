@@ -5,6 +5,8 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.example.data.MushafPageRepository
+import com.example.data.QuranMushafRepository
 import com.example.data.RecentSearchesManager
 import com.example.data.ReciterCatalogRepository
 import com.example.data.UserPreferencesRepository
@@ -39,6 +41,14 @@ class MushafApplication : Application(), ImageLoaderFactory {
 
   val wikipediaPortraitRepository: WikipediaPortraitRepository by lazy {
     WikipediaPortraitRepository(applicationContext)
+  }
+
+  val quranMushafRepository: QuranMushafRepository by lazy {
+    QuranMushafRepository(applicationContext)
+  }
+
+  val mushafPageRepository: MushafPageRepository by lazy {
+    MushafPageRepository(applicationContext, quranMushafRepository)
   }
 
   val wirdReminderManager: DailyWirdReminderManager by lazy {
@@ -89,9 +99,9 @@ class MushafApplication : Application(), ImageLoaderFactory {
       .okHttpClient(okHttpClient)
       .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.20).build() }
       .diskCache {
-        DiskCache.Builder().directory(cacheDir.resolve("image_cache")).maxSizeBytes(40L * 1024 * 1024).build()
+        DiskCache.Builder().directory(cacheDir.resolve("image_cache")).maxSizeBytes(120L * 1024 * 1024).build()
       }
-      .crossfade(true)
+      .crossfade(false)
       .build()
   }
 }

@@ -153,12 +153,12 @@ fun SettingsScreen(
           Spacer(modifier = Modifier.width(14.dp))
           Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = if (preferences.isDarkMode) "الوضع الداكن" else "الوضع الفاتح",
+              text = if (preferences.isDarkMode) "الوضع الداكن" else "ورق المصحف الهادئ (فاتح)",
               style = MaterialTheme.typography.titleMedium,
               color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-              text = "التبديل بين المظهر الداكن المريح والمظهر النهاري الفاتح",
+              text = "التبديل بين مظهر ورق المصحف الدافئ الفاتح والوضع الداكن الليلي",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
