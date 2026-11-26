@@ -1,21 +1,28 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ProGuard / R8 rules for Tilawa Quran Release builds
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve annotations, generics, and Kotlin metadata for Moshi & Retrofit
+-keepattributes Signature,InnerClasses,EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep all Moshi-generated adapters and model classes
+-keep class com.example.model.** { *; }
+-keep class com.example.data.**JsonAdapter { *; }
+-keepclassmembers class * {
+    @com.squareup.moshi.Json <fields>;
+    @com.squareup.moshi.Json <methods>;
+}
+-dontwarn com.squareup.moshi.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep Retrofit & OkHttp interfaces cleanly
+-keepinterface retrofit2.**
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# Keep Media3 / ExoPlayer & playback service components
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+-keep class com.example.playback.QuranPlaybackService { *; }
+-keep class com.example.notifications.DailyWirdReminderReceiver { *; }
